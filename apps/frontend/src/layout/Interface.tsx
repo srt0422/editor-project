@@ -25,31 +25,10 @@ interface InterfaceProps {
 const Interface: React.FC<InterfaceProps> = ({ activeNoteId, children }) => {
   const router = useRouter();
 
-  let [{ notesList, activeNote }, updateNotesList] = useState({
-    notesList: [],
-    activeNote: null,
-  } as { notesList: any[]; activeNote: any });
-
-  //handle the first render after the user clicks a menu item.  this avoids a flicker when the active item changes.
-  activeNote = useMemo(() => {
-    if (activeNote?.id !== activeNoteId) {
-      return notesList.find((it) => it.id === activeNoteId);
-    }
-
-    return activeNote;
-  }, [activeNoteId]);
-
-  const [title, updateTitle] = useState(activeNote?.title);
-
-  useNotesList(
-    { notesList, activeNote },
-    updateNotesList,
-    activeNoteId as string,
-    title,
-    updateTitle
+  let {title, updateTitle, notesList} = useNotesList(
+    activeNoteId as string
   );
 
-  // console.log("notes interface: ", notesList, activeNote, title);
   const childrenWithProps = React.Children.map(children, (child) => {
     if (React.isValidElement(child)) {
       return React.cloneElement(child, { title, updateTitle });

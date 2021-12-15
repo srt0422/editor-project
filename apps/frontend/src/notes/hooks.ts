@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import { NotesResponse, NoteResponse } from "../../../backend/routes/notes";
 import useWebSocket, { ReadyState } from "react-use-websocket";
@@ -19,7 +19,7 @@ import * as Y from "yjs";
 import { parse } from "graphql";
 
 export const yDoc = new Y.Doc();
-export const store = syncedStore({ notes: {} }, yDoc);
+export const store = syncedStore({ notes: {} } as any, yDoc);
 // If you want to use GraphQL API or libs like Axios, you can create your own fetcher function.
 // Check here for more examples: https://swr.vercel.app/docs/data-fetching
 const fetcher = async (input: RequestInfo, init: RequestInit) => {
@@ -28,73 +28,96 @@ const fetcher = async (input: RequestInfo, init: RequestInit) => {
   return res.json();
 };
 
-export const useNotesList = (
-  notesResults: any,
-  updateResults: any,
-  activeNoteId: string,
-  activeNoteTitle: string,
-  updateTitle: any
-): any => {
+export const useNotesList = (activeNoteId: string): any => {
   const state = useSyncedStore(store);
+
+  const [activeNoteTitle, updateTitle] = useState();
+  const [notesList, updateNotesList] = useState([]);
+  
   useEffect(() => {
-    if (notesResults.activeNote) {
-      notesResults.activeNote.title = activeNoteTitle;
-
-      updateResults(notesResults);
-    }
-  }, [activeNoteTitle]);
+    loadNotes(activeNoteId, state, updateNotesList, updateTitle);
+  }, [activeNoteId]);
 
   useEffect(() => {
-    async function loadNotes() {
-      const response = await fetch(`http://localhost:3001/api/notes`);
-
-      const data = await response.json();
-
-      state.notes.list = data.notes;
-      console.log("use list: ", data.notes);
-      const results = {
-        notesList: data.notes ?? [],
-        activeNote: data.notes.find((it: any) => it.id === activeNoteId),
-        isLoading: !response.ok && !data,
-        isError: !response.ok,
-      };
-
-      updateResults(results);
-
-      if (results.activeNote) {
-        updateTitle(results.activeNote.title);
-      }
-    }
-
-    loadNotes();
+    syncNoteTitle(activeNoteId, activeNoteTitle, state, updateTitle);
   }, [activeNoteId, activeNoteTitle]);
 
-  return state;
+  return { title: activeNoteTitle, updateTitle, notesList };
 };
+
+function stateAndObjectAreEqual(state: any, object: any) {
+  if (state && object) {
+    const noteStringified = JSON.stringify(state);
+    const currentNoteState = JSON.parse(noteStringified);
+    // console.log(currentNoteState, object)
+    return deepEqual(currentNoteState, object);
+  }
+
+  return Boolean(state) === Boolean(object);
+}
+
+async function loadNotes(
+  activeNoteId: any,
+  state: any,
+  updateNotesList: any,
+  updateTitle: any
+) {
+  const response = await fetch(`http://localhost:3001/api/notes`);
+
+  const data = await response.json();
+
+  if (state?.notes) {
+    if (!stateAndObjectAreEqual(state.notes.list, data.notes)) {
+      state.notes.list = data.notes;
+    }
+  }
+
+  syncNoteTitle(activeNoteId, null, state, updateTitle);
+  updateNotesList(data.notes);
+}
+
+function syncNoteTitle(activeNoteId, activeNoteTitle, state, updateTitle) {
+  if (isValidNoteList(state)) {
+    const activeNote = state?.notes?.list.find(
+      (it: any) => it.id === activeNoteId
+    );
+
+    if (activeNote) {
+      if (activeNoteTitle && typeof activeNoteTitle !== "undefined") {
+        if (activeNote.title != activeNoteTitle) {
+          activeNote.title = activeNoteTitle;
+        }
+      }
+
+      updateTitle(activeNote.title);
+    }
+  }
+}
 
 export const useSync = (id, clientState, updateClientState) => {
   const state = useSyncedStore(store);
   let wsProvider: WebsocketProvider;
 
   useEffect(() => {
-    // Start a y-websocket server, e.g.: HOST=localhost PORT=1234 npx y-websocket-server
     if (id && typeof id !== "undefined") {
       wsProvider = new WebsocketProvider("ws://localhost:1234", id, yDoc, {
         connect: true,
       });
 
       wsProvider.on("sync", async () => {
-        console.log("start sync");
-        if (isValidNoteList(id, state)) {
+        
+        if (isValidNoteList(state)) {
           const noteState = state.notes.list.find((it) => it.id === id);
 
           if (noteState) {
             const noteStringified = JSON.stringify(noteState);
             const currentNoteState = JSON.parse(noteStringified);
 
-            if (!deepEqual(currentNoteState.content, clientState.content)) {
+            if (!deepEqual(currentNoteState, clientState, true)) {
+              console.log("currentNoteState: ", currentNoteState);
+              console.log("clientState: ", clientState);
               updateClientState(currentNoteState);
-              console.log("new client state: ", currentNoteState);
+              // console.log("new client state: ", currentNoteState);
             }
 
             await fetch(`http://localhost:3001/api/notes/${id}`, {
@@ -115,76 +138,69 @@ export const useSync = (id, clientState, updateClientState) => {
 
 export const useNote = (
   id: string,
-  router: NextRouter,
-  updateClientState: any
+  router: NextRouter
 ): { note: any; readyState: ReadyState; updateNote: any } => {
   const state = useSyncedStore(store);
   let note: any = null;
 
-  if (isValidNoteList(id, state)) {
+  if (isValidNoteList(state)) {
     note = state.notes.list.find((it) => it.id === id);
   }
 
-  const { readyState, lastMessage, sendMessage, getWebSocket } = useWebSocket(
-    `ws://localhost:3001/api/notes/${id}`,
-    {
-      onMessage: async (e) => {
-        let updatedNote;
-
-        if (e.data && typeof e.data === "string") {
-          updatedNote = JSON.parse(e.data);
-        }
-
-        if (id === "new") {
-          const result = await fetch(`http://localhost:3001/api/notes/${id}`, {
-            method: "PUT",
-            body: "{}",
-          });
-
-          const newNote = await result.json();
-          router.push(`http://localhost:3000/notes/${newNote.id}`);
-
-          return;
-        }
-
-        if (stringIsNotEmptyOrNull(e.data)) {
-          const noteResult = JSON.parse(e.data);
-
-          if (state?.notes?.list) {
-            let index = state.notes.list.findIndex((it) => it.id === id);
-
-            state.notes.list.splice(index, 1, noteResult);
-          }
-
-          updateClientState(noteResult);
-        }
-      },
-    }
-  );
-
-  // Send a message when ready on first load
   useEffect(() => {
-    if (readyState === ReadyState.OPEN && lastMessage === null) {
-      sendMessage("");
-    }
-  }, [readyState, lastMessage]);
+    (async () => {
+      if (id === "new") {
+        const result = await fetch(`http://localhost:3001/api/notes/${id}`, {
+          method: "PUT",
+          body: "{}",
+        });
+
+        const newNote = await result.json();
+        router.push(`http://localhost:3000/notes/${newNote.id}`);
+
+        return;
+      }
+    })();
+  }, [id]);
 
   return {
-    note:
-      lastMessage && typeof lastMessage.data === "string"
-        ? (JSON.parse(lastMessage.data) as NoteResponse)
-        : note && JSON.parse(JSON.stringify(note)),
-    readyState,
+    note: note && JSON.parse(JSON.stringify(note)),
+    readyState: 1,
     updateNote(newNote: any) {
-      if (state?.notes?.list) {
-        const index = state.notes.list.indexOf(note);
-        state.notes.list.splice(index, 1, { ...note, ...newNote });
+      if (isValidNoteList(state) && note) {
+        const currentNote = state.notes.list.find(
+          (it: any) => it.id == note.id
+        );
+
+        const combinedNote = {
+          ...currentNote,
+          ...newNote,
+        };
+
+        //trigger a sync operation only if there's a difference
+        if (!stateAndObjectAreEqual(currentNote, combinedNote)) {
+          for (const key in combinedNote) {
+            try {
+              if (
+                combinedNote[key] !== null &&
+                typeof combinedNote[key] !== "undefined"
+              ) {
+                currentNote[key] = combinedNote[key];
+              }
+            } catch (e) {
+              console.log("error key: ", key);
+              console.log("error value: ", currentNote[key]);
+              console.log("error client-state value: ", combinedNote[key]);
+              continue;
+            }
+          }
+        }
       }
     },
   };
 };
 
-function isValidNoteList(id, state) {
+function isValidNoteList(state) {
   return Boolean(state?.notes?.list);
 }
 

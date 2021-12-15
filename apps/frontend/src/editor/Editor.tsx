@@ -46,14 +46,14 @@ export const Editor: React.FC<EditorProps> = ({
   const [previousSelection, selection, setSelection] = useSelection(editor);
 
   // we update selection here because Slate fires an onChange even on pure selection change.
-  const onChangeLocal = useCallback(
-    (value) => {
-      setSelection(editor.selection);
-      setValue({ content: value, selection: editor.selection });
-      identifyLinksInTextIfAny(editor);
-    },
-    [setSelection, editor]
-  );
+  // const onChangeLocal = useCallback(
+  //   (value) => {
+  //     setSelection(editor.selection);
+  //     setValue({ content: value, selection: editor.selection });
+  //     identifyLinksInTextIfAny(editor);
+  //   },
+  //   [setSelection, editor]
+  // );
 
   let selectionForLink: any = null;
 
@@ -75,8 +75,6 @@ export const Editor: React.FC<EditorProps> = ({
     []
   );
 
-  // console.log("editor: ", value, externalSelection);
-
   // useMemo(() => {
   //   if (externalSelection) {
   //     console.log("set selection");
@@ -86,13 +84,25 @@ export const Editor: React.FC<EditorProps> = ({
   //   }
   // }, [externalSelection?.focus?.offset, externalSelection?.anchor?.offset]);
 
-  [value, setValue] = useState([]);
+  const [content, setContent] = useState(value);
+
+  useEffect(() => {
+    setValue({ content, selection: editor.selection });
+  }, [content]);
+
+  useEffect(() => {
+    setContent(value);
+  }, [value]);
+
   return (
     <Slate
       editor={editor}
-      value={value}
-      onChange={setValue}
-      onChange={onChangeLocal}
+      value={content}
+      onChange={(value) => {
+        setSelection(editor.selection);
+        setContent(value);
+        identifyLinksInTextIfAny(editor);
+      }}
     >
       <EditorToolbar />
       <Editable

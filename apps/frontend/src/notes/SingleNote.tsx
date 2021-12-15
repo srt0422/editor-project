@@ -25,7 +25,7 @@ const Home: React.FC<SingleNoteProps> = ({
 
   const updateTitle = useTitleUpdate(updateTitleState, router);
 
-  const { note, readyState, updateNote } = useNote(id, router, updateClientState);
+  const { note, readyState, updateNote } = useNote(id, router);
 
   useSync(id, clientState, updateClientState);
   
@@ -36,8 +36,6 @@ const Home: React.FC<SingleNoteProps> = ({
     [ReadyState.CLOSED]: "error",
     [ReadyState.UNINSTANTIATED]: "error",
   }[readyState] as BadgeTypeMap["props"]["color"];
-
-  console.log("single note");
 
   return note ? (
     <>
