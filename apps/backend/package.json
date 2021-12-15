@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "nodemon app.ts",
+    "dev:sync": "YPERSISTENCE='./data' node ./node_modules/.bin/y-websocket-server",
     "check": "npm run typecheck && npm run lint && npm run test",
     "lint": "eslint --ext .ts,.tsx,.js,.jsx .",
     "lint-fix": "npm run lint -- --fix",
@@ -12,15 +13,22 @@
     "test:watch": "jest --watch"
   },
   "dependencies": {
+    "@slate-yjs/core": "^0.0.2",
+    "@syncedstore/core": "^0.3.4",
     "cookie-parser": "~1.4.4",
     "cors": "^2.8.5",
     "debug": "~2.6.9",
     "express": "~4.16.1",
+    "express-graphql": "^0.12.0",
     "express-ws": "^5.0.2",
     "firebase-admin": "^10.0.0",
+    "graphql": "^16.0.1",
     "http-errors": "~1.6.3",
     "jade": "~1.11.0",
-    "morgan": "~1.9.1"
+    "morgan": "~1.9.1",
+    "uuid": "^8.3.2",
+    "y-websocket": "^1.3.18",
+    "yjs": "^13.5.22"
   },
   "devDependencies": {
     "@types/cors": "^2.8.12",
@@ -30,6 +38,7 @@
     "@types/jest": "^27.0.2",
     "@types/morgan": "^1.9.3",
     "@types/node": "^16.10.6",
+    "@types/uuid": "^8.3.3",
     "jest": "^27.3.1",
     "nodemon": "^2.0.14",
     "ts-jest": "^27.0.7",

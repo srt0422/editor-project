@@ -1,7 +1,11 @@
-import type { NextPage } from 'next'
-import Head from 'next/head'
-import { Interface } from '../src/layout'
-import { SingleNote } from '../src/notes'
+import React from "react";
+import type { NextPage } from "next";
+import Head from "next/head";
+import { Interface } from "../src/layout";
+import { SingleNote } from "../src/notes";
+import { gql } from "@apollo/client";
+import * as functions from "../src/functions";
+import { PropsOf } from "@emotion/react";
 
 const Home: NextPage = () => {
   return (
@@ -12,7 +16,7 @@ const Home: NextPage = () => {
 
       <Interface />
     </>
-  )
-}
+  );
+};
 
-export default Home
+export default Home;

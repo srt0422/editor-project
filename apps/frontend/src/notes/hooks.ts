@@ -4,8 +4,22 @@ import { NotesResponse, NoteResponse } from "../../../backend/routes/notes";
 import useWebSocket, { ReadyState } from "react-use-websocket";
 import { NextRouter } from "next/router";
 import { Descendant } from "slate";
+import deepEqual from "deep-equal";
 import { stringifyForDisplay } from "@apollo/client/utilities";
+import {
+  syncedStore,
+  getYjsValue,
+  observeDeep,
+  areSame,
+} from "@syncedstore/core";
+import { useSyncedStore } from "@syncedstore/react";
+import { WebsocketProvider } from "y-websocket";
+import * as awarenessProtocol from "y-protocols/awareness";
+import * as Y from "yjs";
+import { parse } from "graphql";
 
+export const yDoc = new Y.Doc();
+export const store = syncedStore({ notes: {} }, yDoc);
 // If you want to use GraphQL API or libs like Axios, you can create your own fetcher function.
 // Check here for more examples: https://swr.vercel.app/docs/data-fetching
 const fetcher = async (input: RequestInfo, init: RequestInit) => {
@@ -20,7 +34,8 @@ export const useNotesList = (
   activeNoteId: string,
   activeNoteTitle: string,
   updateTitle: any
-): void => {
+): any => {
+  const state = useSyncedStore(store);
   useEffect(() => {
     if (notesResults.activeNote) {
       notesResults.activeNote.title = activeNoteTitle;
@@ -28,15 +43,17 @@ export const useNotesList = (
       updateResults(notesResults);
     }
   }, [activeNoteTitle]);
-  // console.log("useNotesList: ", activeNoteId, activeNoteTitle);
+
   useEffect(() => {
     async function loadNotes() {
       const response = await fetch(`http://localhost:3001/api/notes`);
 
       const data = await response.json();
 
+      state.notes.list = data.notes;
+      console.log("use list: ", data.notes);
       const results = {
-        notesList: data?.notes ?? [],
+        notesList: data.notes ?? [],
         activeNote: data.notes.find((it: any) => it.id === activeNoteId),
         isLoading: !response.ok && !data,
         isError: !response.ok,
@@ -52,19 +69,63 @@ export const useNotesList = (
     loadNotes();
   }, [activeNoteId, activeNoteTitle]);
 
-  // const { data, error } = useSWR<NotesResponse>(
-  //   "http://localhost:3001/api/notes",
-  //   fetcher
-  // );
+  return state;
+};
+
+export const useSync = (id, clientState, updateClientState) => {
+  const state = useSyncedStore(store);
+  let wsProvider: WebsocketProvider;
+
+  useEffect(() => {
+    // Start a y-websocket server, e.g.: HOST=localhost PORT=1234 npx y-websocket-server
+    if (id && typeof id !== "undefined") {
+      wsProvider = new WebsocketProvider("ws://localhost:1234", id, yDoc, {
+        connect: true,
+      });
+
+      wsProvider.on("sync", async () => {
+        console.log("start sync");
+        if (isValidNoteList(id, state)) {
+          const noteState = state.notes.list.find((it) => it.id === id);
+
+          if (noteState) {
+            const noteStringified = JSON.stringify(noteState);
+            const currentNoteState = JSON.parse(noteStringified);
+
+            if (!deepEqual(currentNoteState.content, clientState.content)) {
+              updateClientState(currentNoteState);
+              console.log("new client state: ", currentNoteState);
+            }
+
+            await fetch(`http://localhost:3001/api/notes/${id}`, {
+              method: "PUT",
+              body: noteStringified,
+              headers: {
+                "Content-type": "application/json; charset=UTF-8", // Indicates the content
+              },
+            });
+          }
+        }
+      });
+    }
+
+    return () => wsProvider.disconnect();
+  });
 };
 
 export const useNote = (
   id: string,
-  router: NextRouter
-): { note: INote; readyState: ReadyState } => {
-  const [note, updateNote] = useState();
+  router: NextRouter,
+  updateClientState: any
+): { note: any; readyState: ReadyState; updateNote: any } => {
+  const state = useSyncedStore(store);
+  let note: any = null;
 
-  const { readyState, lastMessage, sendMessage } = useWebSocket(
+  if (isValidNoteList(id, state)) {
+    note = state.notes.list.find((it) => it.id === id);
+  }
+
+  const { readyState, lastMessage, sendMessage, getWebSocket } = useWebSocket(
     `ws://localhost:3001/api/notes/${id}`,
     {
       onMessage: async (e) => {
@@ -87,7 +148,15 @@ export const useNote = (
         }
 
         if (stringIsNotEmptyOrNull(e.data)) {
-          updateNote(JSON.parse(e.data));
+          const noteResult = JSON.parse(e.data);
+
+          if (state?.notes?.list) {
+            let index = state.notes.list.findIndex((it) => it.id === id);
+
+            state.notes.list.splice(index, 1, noteResult);
+          }
+
+          updateClientState(noteResult);
         }
       },
     }
@@ -101,28 +170,31 @@ export const useNote = (
   }, [readyState, lastMessage]);
 
   return {
-    note, //: (lastMessage && typeof lastMessage.data === "string") ? (JSON.parse(lastMessage.data) as NoteResponse) : note,
+    note:
+      lastMessage && typeof lastMessage.data === "string"
+        ? (JSON.parse(lastMessage.data) as NoteResponse)
+        : note && JSON.parse(JSON.stringify(note)),
     readyState,
+    updateNote(newNote: any) {
+      if (state?.notes?.list) {
+        const index = state.notes.list.indexOf(note);
+        state.notes.list.splice(index, 1, { ...note, ...newNote });
+      }
+    },
   };
 };
 
-export const useContentUpdate = (content: Descendant[], router: NextRouter) => {
-  const id = router.query.id;
+function isValidNoteList(id, state) {
+  return Boolean(state?.notes?.list);
+}
 
-  useEffect(() => {
-    // console.log("id: ", id);
-    // console.log("content: ", content);
-    if (stringIsNotEmptyOrNull(id)) {
-      fetch(`http://localhost:3001/api/notes/${id}`, {
-        method: "PUT",
-        body: JSON.stringify({ id, content }),
-        headers: {
-          "Content-type": "application/json; charset=UTF-8", // Indicates the content
-        },
-      });
-    }
-  }, [content, id]);
-};
+function getNoteState(id, state) {
+  if (state?.notes?.list) {
+    return state.notes.list.find((it) => it.id === id);
+  }
+
+  return null;
+}
 
 export const useTitleUpdate = (updateTitle: any, router: NextRouter) => {
   const id = router.query.id;

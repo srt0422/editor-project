@@ -7,7 +7,8 @@
   "scripts": {
     "frontend:dev": "npm run dev -w frontend",
     "backend:dev": "npm run dev -w backend",
-    "dev": "run-p frontend:dev backend:dev"
+    "backend:dev:sync": "npm run dev:sync -w backend",
+    "dev": "run-p frontend:dev backend:dev backend:dev:sync"
   },
   "resolutions": {
     "react": "^17.0.2",

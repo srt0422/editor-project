@@ -5,4 +5,7 @@ const router = express.Router()
 
 router.use('/notes', notesRouter)
 
-export default router
+export default router;
+// export default {
+//     ...notesRouter
+// }

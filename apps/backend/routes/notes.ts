@@ -1,57 +1,76 @@
-import express, { RequestHandler, Response } from 'express'
-import { WebsocketRequestHandler } from 'express-ws'
-import { Descendant } from 'slate'
-import { NOTE_1, NOTE_2 } from '../fixtures/notes'
+import express, { RequestHandler, Response } from "express";
+import { WebsocketRequestHandler } from "express-ws";
+import { Descendant } from "slate";
+import { INote } from "../../../interfaces";
+import { NOTE_1, NOTE_2 } from "../fixtures/notes";
+import { getNotes, getNote, saveNote } from "../functions";
+import { slateNodesToInsertDelta } from "@slate-yjs/core";
+import * as Y from "yjs";
+import { syncedStore, getYjsValue } from "@syncedstore/core";
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { getYDoc } = require("y-websocket/bin/utils");
 
 // Patch `express.Router` to support `.ws()` without needing to pass around a `ws`-ified app.
 // https://github.com/HenningM/express-ws/issues/86
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const patch = require('express-ws/lib/add-ws-method')
-patch.default(express.Router)
+const patch = require("express-ws/lib/add-ws-method");
+patch.default(express.Router);
 
-const router = express.Router()
+const router = express.Router();
 
 export interface NotesResponse {
   notes: Array<{
-    id: string
-    title: string
-  }>
+    id: string;
+    title: string;
+  }>;
 }
 
 export interface NoteResponse {
-  id: string
-  title: string
-  content: Array<Descendant>
+  id: string;
+  title: string;
+  content: Array<Descendant>;
 }
 
-const notesHandler: RequestHandler = (_req, res: Response<NotesResponse>) => {
+const notesHandler: RequestHandler = async (
+  _req,
+  res: Response<NotesResponse>
+) => {
   res.json({
-    notes: [
-      {
-        id: NOTE_1.id,
-        title: NOTE_1.title
-      }, {
-        id: NOTE_2.id,
-        title: NOTE_2.title
-      }
-    ]
-  })
-}
+    notes: await getNotes(),
+  } as NotesResponse);
+};
 
 const noteHandler: WebsocketRequestHandler = (ws, req) => {
-  ws.on('message', () => {
-    switch (req.params.id) {
-      case NOTE_1.id: {
-        return ws.send(JSON.stringify(NOTE_1))
-      }
-      case NOTE_2.id: {
-        return ws.send(JSON.stringify(NOTE_2))
-      }
-    }
-  })
-}
 
-router.get('/', notesHandler)
-router.ws('/:id', noteHandler)
+  ws.on("message", async function (msg) {
+    ws.send(JSON.stringify(await getNote(req.params.id)));
+  });
+};
 
-export default router
+const saveNoteHandler: RequestHandler = async (
+  req,
+  res: Response<NotesResponse>
+) => {
+  res.json(await saveNote(req.params.id, req.body as INote));
+};
+
+router.get("/", notesHandler);
+router.put("/:id", saveNoteHandler);
+router.ws("/:id", noteHandler);
+
+export default router;
+
+// const notesHandler = async () => {
+//   return {
+//     notes: await getNotes(),
+//   };
+// };
+
+// const noteHandler: WebsocketRequestHandler = async (ws, req) => {
+//   return await getNote(req.params.id);
+// };
+
+// export default {
+//   getNote: noteHandler,
+//   getNotes: notesHandler,
+// };

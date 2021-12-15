@@ -7,6 +7,7 @@ export interface CustomText extends BaseText {
   code?: boolean
   italic?: boolean
   underline?: boolean
+  link?: boolean
 }
 
 export const CustomLeaf: React.FC<RenderLeafProps> = ({ attributes, children, leaf }) => {
