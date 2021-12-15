@@ -25,18 +25,17 @@ declare module "slate" {
 }
 
 interface EditorProps {
-  initialValue?: Descendant[];
   placeholder?: string;
   setValue: any;
   value: any;
-  externalSelection: any;
+  externalSelection?: any;
 }
 
 export const Editor: React.FC<EditorProps> = ({
   placeholder,
   setValue,
   value = [],
-  externalSelection = null,
+  // externalSelection = null,
 }) => {
   const renderLeaf = useCallback((props) => <CustomLeaf {...props} />, []);
   const editor: BaseEditor & ReactEditor & HistoryEditor = useMemo(
@@ -44,37 +43,37 @@ export const Editor: React.FC<EditorProps> = ({
     []
   );
 
-  // const [previousSelection, selection, setSelection] = useSelection(editor);
+  const [previousSelection, selection, setSelection] = useSelection(editor);
 
-  // // we update selection here because Slate fires an onChange even on pure selection change.
-  // const onChangeLocal = useCallback(
-  //   (value) => {
-  //     setSelection(editor.selection);
-  //     setValue({ content: value, selection: editor.selection });
-  //     identifyLinksInTextIfAny(editor);
-  //   },
-  //   [setSelection, editor]
-  // );
+  // we update selection here because Slate fires an onChange even on pure selection change.
+  const onChangeLocal = useCallback(
+    (value) => {
+      setSelection(editor.selection);
+      setValue({ content: value, selection: editor.selection });
+      identifyLinksInTextIfAny(editor);
+    },
+    [setSelection, editor]
+  );
 
-  // let selectionForLink: any = null;
+  let selectionForLink: any = null;
 
-  // try {
-  //   if (isLinkNodeAtSelection(editor, selection)) {
-  //     selectionForLink = selection;
-  //   } else if (
-  //     selection == null &&
-  //     isLinkNodeAtSelection(editor, previousSelection)
-  //   ) {
-  //     selectionForLink = previousSelection;
-  //   }
-  // } catch (e) {
-  //   console.log("selection error: ", e.message);
-  // }
+  try {
+    if (isLinkNodeAtSelection(editor, selection)) {
+      selectionForLink = selection;
+    } else if (
+      selection == null &&
+      isLinkNodeAtSelection(editor, previousSelection)
+    ) {
+      selectionForLink = previousSelection;
+    }
+  } catch (e) {
+    console.log("selection error: ", e.message);
+  }
 
-  // const renderElement = useCallback(
-  //   (props) => <CustomElement {...props} selectionForLink={selectionForLink} />,
-  //   []
-  // );
+  const renderElement = useCallback(
+    (props) => <CustomElement {...props} selectionForLink={selectionForLink} />,
+    []
+  );
 
   // console.log("editor: ", value, externalSelection);
 
@@ -82,19 +81,20 @@ export const Editor: React.FC<EditorProps> = ({
   //   if (externalSelection) {
   //     console.log("set selection");
   //     // editor.selection
-      
+
   //     Transforms.setSelection(editor, externalSelection);
   //   }
   // }, [externalSelection?.focus?.offset, externalSelection?.anchor?.offset]);
 
   [value, setValue] = useState([]);
   return (
-    <Slate editor={editor} value={value} 
-    onChange={setValue}
-    // onChange={onChangeLocal}
+    <Slate
+      editor={editor}
+      value={value}
+      onChange={setValue}
+      onChange={onChangeLocal}
     >
-      <Editable />
-      {/* <EditorToolbar />
+      <EditorToolbar />
       <Editable
         renderElement={renderElement}
         renderLeaf={renderLeaf}
@@ -106,7 +106,7 @@ export const Editor: React.FC<EditorProps> = ({
         autoCorrect="false"
         spellCheck="false"
         autoFocus={false}
-      /> */}
+      />
     </Slate>
   );
 };
