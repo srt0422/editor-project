@@ -1,8 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { Editor } from "../editor";
-import { useNote, useTitleUpdate, 
-  useSync
-} from "./hooks";
+import { useNote, useTitleUpdate, useSync } from "./hooks";
 import { Descendant } from "slate";
 import { ReadyState } from "react-use-websocket";
 import { useRouter } from "next/router";
@@ -17,18 +15,26 @@ interface SingleNoteProps {
 const Home: React.FC<SingleNoteProps> = ({
   id,
   title,
-  updateTitle: updateTitleState
+  updateTitle: updateTitleState,
 }) => {
   const router = useRouter();
 
-  const [clientState, updateClientState] = useState({ content: [] });
+  const [clientState, updateClientState] = useState({
+    content: [
+      {
+        type: "paragraph",
+        children: [{ text: "" }],
+      },
+    ],
+    selection: null,
+  });
 
   const updateTitle = useTitleUpdate(updateTitleState, router);
 
   const { note, readyState, updateNote } = useNote(id, router);
 
   useSync(id, clientState, updateClientState);
-  
+
   const connectionStatusColor = {
     [ReadyState.CONNECTING]: "info",
     [ReadyState.OPEN]: "success",
@@ -58,7 +64,11 @@ const Home: React.FC<SingleNoteProps> = ({
           flexDirection: "column",
         }}
       >
-        <Editor setValue={updateNote} value={clientState.content} externalSelection={clientState.selection} />
+        <Editor
+          setValue={updateNote}
+          value={clientState.content}
+          externalSelection={clientState.selection}
+        />
       </Paper>
     </>
   ) : null;

@@ -101,11 +101,11 @@ export const useSync = (id, clientState, updateClientState) => {
   useEffect(() => {
     if (id && typeof id !== "undefined") {
       wsProvider = new WebsocketProvider("ws://localhost:1234", id, yDoc, {
-        connect: true,
+        connect: true
       });
 
       wsProvider.on("sync", async () => {
-        
+        console.log("handling sync");
         if (isValidNoteList(state)) {
           const noteState = state.notes.list.find((it) => it.id === id);
 
@@ -114,10 +114,7 @@ export const useSync = (id, clientState, updateClientState) => {
             const currentNoteState = JSON.parse(noteStringified);
 
             if (!deepEqual(currentNoteState, clientState, true)) {
-              console.log("currentNoteState: ", currentNoteState);
-              console.log("clientState: ", clientState);
               updateClientState(currentNoteState);
-              // console.log("new client state: ", currentNoteState);
             }
 
             await fetch(`http://localhost:3001/api/notes/${id}`, {
@@ -191,6 +188,7 @@ export const useNote = (
               console.log("error key: ", key);
               console.log("error value: ", currentNote[key]);
               console.log("error client-state value: ", combinedNote[key]);
+              console.log("error message: ", e.message);
               continue;
             }
           }

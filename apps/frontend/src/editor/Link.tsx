@@ -36,7 +36,7 @@ const Link: React.FC<any> = ({
 
   const open = Boolean(anchorEl);
   const id = open || !closedOnce ? "simple-popover" : undefined;
-  
+
   const above = Editor.above(editor, {
     at: selectionForLink,
     match: (n: any) => n.type === CustomElementType.anchor,
@@ -46,19 +46,27 @@ const Link: React.FC<any> = ({
     [node, path] = above;
   }
 
-  const [linkURL, setLinkURL] = useState(node?.href);
+  const [linkURL, setLinkURL] = useState(node?.href || "");
 
   useEffect(() => {
-    setLinkURL(node?.href);
+    if (node?.href) {
+      setLinkURL(node?.href);
+    }
   }, [node]);
 
   const onLinkURLChange = useCallback(
-    (event) => setLinkURL(event.target.value),
+    (event) => {
+      if (event.target.value) {
+        setLinkURL(event.target.value);
+      }
+    },
     [setLinkURL]
   );
 
   useEffect(() => {
-    Transforms.setNodes(editor, { href: linkURL } as any, { at: path });
+    if (linkURL) {
+      Transforms.setNodes(editor, { href: linkURL } as any, { at: path });
+    }
   }, [editor, linkURL, path]);
 
   return (
@@ -81,7 +89,7 @@ const Link: React.FC<any> = ({
           vertical: "bottom",
           horizontal: "left",
         }}
-        style={{padding: 15}}
+        style={{ padding: 15 }}
       >
         <LinkIcon />
         <Box>

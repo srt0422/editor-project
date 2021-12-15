@@ -29,5 +29,3 @@ export const CustomLeaf: React.FC<RenderLeafProps> = ({ attributes, children, le
 
   return <span {...attributes}>{children}</span>
 }
-
-

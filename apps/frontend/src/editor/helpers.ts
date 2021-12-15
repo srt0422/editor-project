@@ -14,6 +14,7 @@ import { KeyboardEvent } from "react";
 import { CustomElementType } from "./CustomElement";
 import { CustomText } from "./CustomLeaf";
 import isUrl from "is-url";
+import { jsx } from 'slate-hyperscript'
 
 const LIST_TYPES = ["numbered-list", "bulleted-list"];
 
@@ -112,7 +113,7 @@ export const handleHotkeys =
 // source: https://dev.to/koralarts/slatejs-adding-images-and-links-2g93
 export const createLinkNode = (href: string, text: string) => ({
   type: CustomElementType.anchor,
-  href,
+  href: href || "",
   children: [{ text }],
 });
 
@@ -306,7 +307,7 @@ function createLinkForRange(editor, range, linkText, linkURL, isInsertion) {
         editor,
         {
           type: CustomElementType.anchor,
-          url: linkURL,
+          href: linkURL,
           children: [{ text: linkText }],
         },
         range != null ? { at: range } : undefined
@@ -315,9 +316,145 @@ function createLinkForRange(editor, range, linkText, linkURL, isInsertion) {
         editor,
         {
           type: CustomElementType.anchor,
-          url: linkURL,
+          href: linkURL,
           children: [{ text: linkText }],
         },
         { split: true, at: range }
       );
+}
+
+
+const ELEMENT_TAGS = {
+  A: el => ({ type: 'link', href: el.getAttribute('href') }),
+  BLOCKQUOTE: () => ({ type: 'quote' }),
+  H1: () => ({ type: 'heading-one' }),
+  H2: () => ({ type: 'heading-two' }),
+  H3: () => ({ type: 'heading-three' }),
+  H4: () => ({ type: 'heading-four' }),
+  H5: () => ({ type: 'heading-five' }),
+  H6: () => ({ type: 'heading-six' }),
+  IMG: el => ({ type: 'image', url: el.getAttribute('src') }),
+  LI: () => ({ type: 'list-item' }),
+  OL: () => ({ type: 'numbered-list' }),
+  P: () => ({ type: 'paragraph' }),
+  PRE: () => ({ type: 'code' }),
+  UL: () => ({ type: 'bulleted-list' })
+}
+
+// COMPAT: `B` is omitted here because Google Docs uses `<b>` in weird ways.
+const TEXT_TAGS = {
+  CODE: () => ({ code: true }),
+  DEL: () => ({ strikethrough: true }),
+  EM: () => ({ italic: true }),
+  I: () => ({ italic: true }),
+  S: () => ({ strikethrough: true }),
+  STRONG: () => ({ bold: true }),
+  U: () => ({ underline: true })
+}
+
+export const deserialize = el => {
+  if (el.nodeType === 3) {
+    return el.textContent
+  } else if (el.nodeType !== 1) {
+    return null
+  }
+
+  const { nodeName } = el
+  let parent = el
+
+  if (
+    nodeName === 'PRE' &&
+    el.childNodes[0] &&
+    el.childNodes[0].nodeName === 'CODE'
+  ) {
+    parent = el.childNodes[0]
+  }
+
+  const children = Array.from(parent.childNodes)
+    .map(deserialize)
+    .flat()
+
+  if (el.nodeName === 'BODY') {
+    return jsx('fragment', {}, children)
+  }
+
+  if (el.nodeName === 'BR') {
+    return jsx('element', { type: 'paragraph' }, [{ text: '' }])
+  }
+
+  if (ELEMENT_TAGS[nodeName]) {
+    const attrs = ELEMENT_TAGS[nodeName](el)
+    return jsx('element', attrs, children)
+  }
+
+  if (TEXT_TAGS[nodeName]) {
+    const attrs = TEXT_TAGS[nodeName](el)
+    return children.map(child => jsx('text', attrs, child))
+  }
+
+  return children
+}
+
+export const withHtml = editor => {
+  const { insertData, isInline, isVoid } = editor
+
+  editor.isInline = element => {
+    return element.type === 'link' ? true : isInline(element)
+  }
+
+  editor.isVoid = element => {
+    return element.type === 'image' ? true : isVoid(element)
+  }
+
+  const wrapTopLevelInlineNodesInParagraphs = (editor, fragment) => {
+    let inlineNodes = []
+    const newFragments = []
+
+    const maybePushInlineNodeParagraph = () => {
+      if (inlineNodes.length > 0) {
+        newFragments.push(jsx('element', { type: 'paragraph' }, inlineNodes))
+        inlineNodes = []
+      }
+    }
+
+    fragment.forEach(node => {
+      if (Text.isText(node) || Editor.isInline(editor, node)) {
+        inlineNodes.push(node)
+      } else {
+        maybePushInlineNodeParagraph()
+        newFragments.push(node)
+      }
+    })
+    maybePushInlineNodeParagraph()
+
+    return newFragments
+  }
+
+  editor.insertData = data => {
+    const html = data.getData('text/html')
+
+    if (html) {
+      console.log(html)
+      const parsed = new DOMParser().parseFromString(html, 'text/html')
+      console.log(parsed.body)
+      const fragment = deserialize(parsed.body)
+      console.log(fragment)
+      console.log(JSON.stringify(fragment))
+      let fragmentWithOnlyBlocks = fragment
+      if (Array.isArray(fragment)) {
+        fragmentWithOnlyBlocks = wrapTopLevelInlineNodesInParagraphs(
+          editor,
+          fragment
+        )
+      }
+      console.log(fragmentWithOnlyBlocks)
+      console.log(JSON.stringify(fragmentWithOnlyBlocks))
+      Transforms.insertFragment(editor, fragmentWithOnlyBlocks)
+      return
+    }
+
+    insertData(data)
+  }
+
+  return editor
 }
