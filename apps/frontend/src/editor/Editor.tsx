@@ -76,16 +76,12 @@ export const Editor: React.FC<EditorProps> = ({
     if (externalSelection) {
       Transforms.setSelection(editor, externalSelection);
       setSelection(externalSelection);
-
-      console.log("value: ", value);
-      console.log("externalSelection: ", externalSelection);
     }
     setContent(value);
   }, [value]);
 
   const onChange = useCallback(
     (value) => {
-      console.log("changed: ", value);
       setSelection(editor.selection);
       setContent(value);
       identifyLinksInTextIfAny(editor);
@@ -196,24 +192,3 @@ const Leaf = ({ attributes, children, leaf }) => {
 
   return <span {...attributes}>{children}</span>
 }
-
-
-// const PasteHtmlExample = () => {
-//   const [value, setValue] = useState(initialValue)
-//   const renderElement = useCallback(props => <Element {...props} />, [])
-//   const renderLeaf = useCallback(props => <Leaf {...props} />, [])
-//   const editor = useMemo(
-//     () => withHtml(withReact(withHistory(createEditor()))),
-//     []
-//   )
-//   console.log('editor.children', JSON.stringify(editor.children))
-//   return (
-//     <Slate editor={editor} value={value} onChange={value => setValue(value)}>
-//       <Editable
-//         renderElement={renderElement}
-//         renderLeaf={renderLeaf}
-//         placeholder="Paste in some HTML..."
-//       />
-//     </Slate>
-//   )
-// }

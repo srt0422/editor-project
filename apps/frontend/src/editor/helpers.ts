@@ -269,8 +269,6 @@ export function identifyLinksInTextIfAny(editor: any): any {
     return;
   }
 
-  console.log("editor: ", editor, start, end);
-
   lastCharacter = Editor.string(editor, Editor.range(editor, start, end));
   //TODO: add some error handling around this for the sake of edge cases
   while (

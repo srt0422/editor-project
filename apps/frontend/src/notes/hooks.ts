@@ -49,7 +49,7 @@ function stateAndObjectAreEqual(state: any, object: any) {
   if (state && object) {
     const noteStringified = JSON.stringify(state);
     const currentNoteState = JSON.parse(noteStringified);
-    // console.log(currentNoteState, object)
+    
     return deepEqual(currentNoteState, object);
   }
 
@@ -105,7 +105,6 @@ export const useSync = (id, clientState, updateClientState) => {
       });
 
       wsProvider.on("sync", async () => {
-        console.log("handling sync");
         if (isValidNoteList(state)) {
           const noteState = state.notes.list.find((it) => it.id === id);
 
